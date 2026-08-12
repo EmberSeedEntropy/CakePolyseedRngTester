@@ -23,6 +23,9 @@ jobs:
       - name: Create Android project
         run: flutter create . --platforms=android --project-name=cake_polyseed_rng_tester
 
+      - name: Remove generated test
+        run: rm -rf test
+
       - name: Get dependencies
         run: flutter pub get
 
