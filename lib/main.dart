@@ -29,18 +29,86 @@ class _RngHomeState extends State<RngHome> {
   static const int count = 10000;
 
   final _controller = TextEditingController();
+
   bool _busy = false;
   String _status = 'Ready';
 
-  String _generate() {
-    final rng = Random.secure();
-    final out = StringBuffer();
+  /*
+   * CAKE / POLYSEED ENTROPY SOURCE
+   *
+   * Cake Wallet 6.4.0 uses Polyseed 0.0.7 for the Monero
+   * 16-word Polyseed path.
+   *
+   * Polyseed 0.0.7 obtains its random material using:
+   *
+   *     final random = Random.secure();
+   *     random.nextInt(256)
+   *
+   * A value from 0–255 is therefore a complete unbiased byte.
+   *
+   * We use the same Random.secure() source and the same
+   * nextInt(256) byte generation for this diagnostic.
+   *
+   * IMPORTANT:
+   *
+   * The 0–9 digits produced by this application are NOT
+   * Polyseed's native representation. They are simply the
+   * output format required by Ember Diagnostics.
+   */
 
-    for (var i = 0; i < count; i++) {
-      out.write(rng.nextInt(10));
+  final Random _secureRandom = Random.secure();
+
+  /// Obtain one secure random byte using the same operation
+  /// used by Polyseed 0.0.7.
+  int _nextSecureByte() {
+    return _secureRandom.nextInt(256);
+  }
+
+  /*
+   * Convert secure random bytes to an unbiased decimal digit.
+   *
+   * A byte contains 256 equally likely values.
+   *
+   * We use its lower four bits:
+   *
+   *     0–15
+   *
+   * Values:
+   *
+   *     0–9  = accepted
+   *     10–15 = rejected
+   *
+   * Every decimal digit therefore has exactly one accepted
+   * four-bit representation.
+   *
+   * This avoids the modulo bias that would occur with:
+   *
+   *     byte % 10
+   *
+   * The rejected values are simply discarded and a new
+   * secure random byte is obtained.
+   */
+  int _nextUnbiasedDigit() {
+    while (true) {
+      final byte = _nextSecureByte();
+
+      final candidate = byte & 0x0F;
+
+      if (candidate < 10) {
+        return candidate;
+      }
+    }
+  }
+
+  /// Generate exactly 10,000 diagnostic digits.
+  String _generate() {
+    final digits = StringBuffer();
+
+    while (digits.length < count) {
+      digits.write(_nextUnbiasedDigit());
     }
 
-    return out.toString();
+    return digits.toString();
   }
 
   Future<void> _generateDigits() async {
@@ -49,6 +117,7 @@ class _RngHomeState extends State<RngHome> {
       _status = 'Generating 10,000 digits…';
     });
 
+    // Give the interface an opportunity to update before generation.
     await Future<void>.delayed(Duration.zero);
 
     try {
@@ -56,7 +125,9 @@ class _RngHomeState extends State<RngHome> {
 
       _controller.value = TextEditingValue(
         text: text,
-        selection: TextSelection.collapsed(offset: text.length),
+        selection: TextSelection.collapsed(
+          offset: text.length,
+        ),
       );
 
       setState(() {
@@ -123,8 +194,9 @@ class _RngHomeState extends State<RngHome> {
               const SizedBox(height: 7),
 
               const Text(
-                'Uses Dart Random.secure() to generate '
-                '10,000 decimal digits (0–9) for Ember Diagnostics.',
+                'Uses the same secure random byte mechanism as '
+                'Polyseed 0.0.7, then converts the output to '
+                'unbiased 0–9 digits for Ember Diagnostics.',
                 style: TextStyle(fontSize: 13),
               ),
 
