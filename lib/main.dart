@@ -27,6 +27,7 @@ class RngHome extends StatefulWidget {
 
 class _RngHomeState extends State<RngHome> {
   static const int count = 10000;
+  static const int digitsPerLine = 10;
 
   final _controller = TextEditingController();
 
@@ -39,59 +40,35 @@ class _RngHomeState extends State<RngHome> {
    * Cake Wallet 6.4.0 uses Polyseed 0.0.7 for the Monero
    * 16-word Polyseed path.
    *
-   * Polyseed 0.0.7 obtains its random material using:
+   * Polyseed obtains random bytes using:
    *
-   *     final random = Random.secure();
-   *     random.nextInt(256)
+   *     Random.secure().nextInt(256)
    *
-   * A value from 0–255 is therefore a complete unbiased byte.
+   * We use the same secure random byte mechanism here.
    *
-   * We use the same Random.secure() source and the same
-   * nextInt(256) byte generation for this diagnostic.
-   *
-   * IMPORTANT:
-   *
-   * The 0–9 digits produced by this application are NOT
-   * Polyseed's native representation. They are simply the
-   * output format required by Ember Diagnostics.
+   * The 0-9 output is ONLY a diagnostic representation.
+   * It is not Polyseed's native representation.
    */
 
   final Random _secureRandom = Random.secure();
 
-  /// Obtain one secure random byte using the same operation
-  /// used by Polyseed 0.0.7.
   int _nextSecureByte() {
     return _secureRandom.nextInt(256);
   }
 
   /*
-   * Convert secure random bytes to an unbiased decimal digit.
+   * Convert the secure byte stream to unbiased decimal digits.
    *
-   * A byte contains 256 equally likely values.
+   * Lower four bits produce values 0-15.
    *
-   * We use its lower four bits:
+   * 0-9  = accepted
+   * 10-15 = rejected
    *
-   *     0–15
-   *
-   * Values:
-   *
-   *     0–9  = accepted
-   *     10–15 = rejected
-   *
-   * Every decimal digit therefore has exactly one accepted
-   * four-bit representation.
-   *
-   * This avoids the modulo bias that would occur with:
-   *
-   *     byte % 10
-   *
-   * The rejected values are simply discarded and a new
-   * secure random byte is obtained.
+   * This avoids modulo bias.
    */
   int _nextUnbiasedDigit() {
     while (true) {
       final byte = _nextSecureByte();
-
       final candidate = byte & 0x0F;
 
       if (candidate < 10) {
@@ -100,15 +77,26 @@ class _RngHomeState extends State<RngHome> {
     }
   }
 
-  /// Generate exactly 10,000 diagnostic digits.
+  /*
+   * Generate exactly 10,000 digits.
+   *
+   * Newlines are presentation only:
+   * 10 digits per line.
+   *
+   * The underlying sequence is unchanged.
+   */
   String _generate() {
-    final digits = StringBuffer();
+    final output = StringBuffer();
 
-    while (digits.length < count) {
-      digits.write(_nextUnbiasedDigit());
+    for (var i = 0; i < count; i++) {
+      output.write(_nextUnbiasedDigit());
+
+      if ((i + 1) % digitsPerLine == 0 && i + 1 < count) {
+        output.write('\n');
+      }
     }
 
-    return digits.toString();
+    return output.toString();
   }
 
   Future<void> _generateDigits() async {
@@ -117,7 +105,6 @@ class _RngHomeState extends State<RngHome> {
       _status = 'Generating 10,000 digits…';
     });
 
-    // Give the interface an opportunity to update before generation.
     await Future<void>.delayed(Duration.zero);
 
     try {
@@ -145,6 +132,13 @@ class _RngHomeState extends State<RngHome> {
   Future<void> _copy() async {
     if (_controller.text.isEmpty) return;
 
+    /*
+     * IMPORTANT:
+     * Copy the formatted output exactly as displayed.
+     * The diagnostic can therefore receive the digits
+     * directly, with the line breaks acting only as
+     * separators.
+     */
     await Clipboard.setData(
       ClipboardData(text: _controller.text),
     );
