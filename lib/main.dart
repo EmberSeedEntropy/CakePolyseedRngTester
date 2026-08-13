@@ -34,38 +34,19 @@ class _RngHomeState extends State<RngHome> {
   bool _busy = false;
   String _status = 'Ready';
 
-  /*
-   * CAKE / POLYSEED ENTROPY SOURCE
-   *
-   * Cake Wallet 6.4.0 uses Polyseed 0.0.7 for the Monero
-   * 16-word Polyseed path.
-   *
-   * Polyseed obtains random bytes using:
-   *
-   *     Random.secure().nextInt(256)
-   *
-   * We use the same secure random byte mechanism here.
-   *
-   * The 0-9 output is ONLY a diagnostic representation.
-   * It is not Polyseed's native representation.
-   */
-
+  // Cake / Polyseed entropy source:
+  // Random.secure().nextInt(256)
   final Random _secureRandom = Random.secure();
 
   int _nextSecureByte() {
     return _secureRandom.nextInt(256);
   }
 
-  /*
-   * Convert the secure byte stream to unbiased decimal digits.
-   *
-   * Lower four bits produce values 0-15.
-   *
-   * 0-9  = accepted
-   * 10-15 = rejected
-   *
-   * This avoids modulo bias.
-   */
+  // Unbiased conversion to 0-9.
+  //
+  // Four bits give 0-15.
+  // 0-9 are accepted.
+  // 10-15 are rejected.
   int _nextUnbiasedDigit() {
     while (true) {
       final byte = _nextSecureByte();
@@ -77,20 +58,23 @@ class _RngHomeState extends State<RngHome> {
     }
   }
 
-  /*
-   * Generate exactly 10,000 digits.
-   *
-   * Newlines are presentation only:
-   * 10 digits per line.
-   *
-   * The underlying sequence is unchanged.
-   */
+  // Generate exactly 10,000 digits.
+  //
+  // IMPORTANT:
+  // Spaces and line breaks are formatting only.
+  // They do not form part of the random sequence.
   String _generate() {
     final output = StringBuffer();
 
     for (var i = 0; i < count; i++) {
       output.write(_nextUnbiasedDigit());
 
+      if (i + 1 < count) {
+        // Space between every individual digit.
+        output.write(' ');
+      }
+
+      // Ten digits per line.
       if ((i + 1) % digitsPerLine == 0 && i + 1 < count) {
         output.write('\n');
       }
@@ -132,13 +116,7 @@ class _RngHomeState extends State<RngHome> {
   Future<void> _copy() async {
     if (_controller.text.isEmpty) return;
 
-    /*
-     * IMPORTANT:
-     * Copy the formatted output exactly as displayed.
-     * The diagnostic can therefore receive the digits
-     * directly, with the line breaks acting only as
-     * separators.
-     */
+    // Copy exactly what is displayed, including spaces and line breaks.
     await Clipboard.setData(
       ClipboardData(text: _controller.text),
     );
